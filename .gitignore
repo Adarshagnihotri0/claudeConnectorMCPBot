@@ -1,0 +1,12 @@
+*.egg-info/
+*.py[cod]
+.DS_Store
+.mypy_cache/
+.pytest_cache/
+.venv/
+__pycache__/
+build/
+dist/
+
+# Documentation files
+ENGINEERING_DEEP_DIVE.md

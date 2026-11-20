@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-approval-gate"
+dynamic = ["version"]
+description = "Approve or block every Claude Desktop / Claude Web MCP tool call from Telegram or a local popup"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{name = "Vibhav Trivedi"}]
+keywords = ["mcp", "model-context-protocol", "claude", "approval", "telegram", "security", "proxy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
+# Runtime: Python standard library only. Tkinter is needed only for --approver popup.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["mypy>=1.10", "build", "twine"]
+
+[project.scripts]
+mcp-approval-gate = "mcp_approval_gate.main:main"
+
+[project.urls]
+Homepage = "https://github.com/Adarshagnihotri0/mcp-approval-gate"
+Documentation = "https://github.com/Adarshagnihotri0/mcp-approval-gate#readme"
+Issues = "https://github.com/Adarshagnihotri0/mcp-approval-gate/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "mcp_approval_gate.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mcp_approval_gate = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = false
+files = ["src/mcp_approval_gate"]

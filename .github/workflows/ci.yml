@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests · ${{ matrix.os }} · py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Tkinter (popup approver tests)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb
+      - name: Unit, integration and end-to-end tests
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a python -m unittest discover -s tests -v
+          else python -m unittest discover -s tests -v; fi
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "mypy>=1.10"
+      - name: mypy --strict
+        run: mypy
+
+  package:
+    name: build and install like a user
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - name: Install the wheel into a clean venv and smoke-test the CLI
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          /tmp/clean/bin/mcp-approval-gate --version
+          /tmp/clean/bin/mcp-approval-gate --help
+          /tmp/clean/bin/python -m mcp_approval_gate permissions
+          echo '{"mcpServers":{"demo":{"command":"echo","args":["hi"]}}}' > /tmp/cfg.json
+          /tmp/clean/bin/mcp-approval-gate wrap-desktop --config /tmp/cfg.json --dry-run
+      - name: install.sh from the checkout
+        run: MCP_GATE_HOME=/tmp/gate-home MCP_GATE_NO_QUICKSTART=1 ./install.sh && ~/.local/bin/mcp-approval-gate --version
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: dist
+          path: dist/
