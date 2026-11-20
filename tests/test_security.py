@@ -28,7 +28,7 @@ from mcp_approval_gate.gate import CONTROL_METHODS, ApprovalGate, Request, decod
 from mcp_approval_gate.paths import ensure_private_dir, write_private_file
 from mcp_approval_gate.request_format import REDACTED, TELEGRAM_MAX_TEXT, approval_card, redact
 from mcp_approval_gate.stdio_proxy import serve as serve_stdio
-from test_daemon import CHAT, DaemonHarness, tap, wait_for, write
+from test_daemon import CHAT, DaemonHarness, tap, wait_for, wait_for_daemon, write
 
 
 class SecretRedaction(unittest.TestCase):
@@ -242,9 +242,9 @@ class LocalSocket(unittest.TestCase):
         path = pathlib.Path(harness.dir.name) / "capped.sock"
         thread = threading.Thread(target=serve, args=(harness.daemon, path, stop, 2), daemon=True)
         thread.start()
-        wait_for(path.exists)
         holders = []
         try:
+            wait_for_daemon(path)
             for _ in range(2):  # occupy every slot with idle connections
                 conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 conn.connect(str(path))
