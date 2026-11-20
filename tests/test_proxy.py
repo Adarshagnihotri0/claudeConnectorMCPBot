@@ -14,8 +14,24 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 from mcp_approval_gate.activity import ActivityStore, MAX_EVENTS
 from mcp_approval_gate.gate import ApprovalGate, CONTROL_METHODS, DENIED, Request, decode_message
 from mcp_approval_gate.http_proxy import BoundedHTTPServer, handler_for
-from mcp_approval_gate.popup import MAX_PREVIEW_CHARS, PopupApprover, action_description, approval_preview
 from mcp_approval_gate.stdio_proxy import serve as serve_stdio
+
+# Popup imports may fail if tkinter is not available (e.g., in CI)
+try:
+    from mcp_approval_gate.popup import MAX_PREVIEW_CHARS, PopupApprover, action_description, approval_preview
+except ImportError:
+    MAX_PREVIEW_CHARS = 16000
+    PopupApprover = None
+    def action_description(method: str, tool_label: str) -> str:
+        if method == "tools/call":
+            return f"Claude wants to run tool {tool_label}."
+        if method == "resources/read":
+            return "Claude wants to read a resource from this server."
+        if method == "prompts/get":
+            return "Claude wants to retrieve a prompt from this server."
+        return "Claude wants to send this request to the server."
+    def approval_preview(request):
+        return None
 
 
 class GateTests(unittest.TestCase):
@@ -131,6 +147,7 @@ class GateTests(unittest.TestCase):
         self.assertIsNone(ApprovalGate(lambda _: True, activity=BrokenHistory()).evaluate(
             {"id": 4, "method": "initialize"}, "notes")[0])
 
+    @unittest.skipIf(PopupApprover is None, "tkinter not available")
     def test_popup_preview_never_hides_arguments_or_control_characters(self):
         safe = Request("notes", "tools/call", {"name": "write", "text": "A\u202eB"}, 1)
         labels, details = approval_preview(safe)
@@ -146,6 +163,7 @@ class GateTests(unittest.TestCase):
         self.assertFalse(approver.decide(oversized))
         self.assertTrue(approver.pending.empty())
 
+    @unittest.skipIf(PopupApprover is None, "tkinter not available")
     def test_cancellation_dismisses_active_popup_without_tk(self):
         class Window:
             destroyed = False
