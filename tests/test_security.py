@@ -243,11 +243,20 @@ class LocalSocket(unittest.TestCase):
         thread = threading.Thread(target=serve, args=(harness.daemon, path, stop, 2), daemon=True)
         thread.start()
         wait_for(path.exists)
+        time.sleep(0.1)  # Give server time to start listening
         holders = []
         try:
             for _ in range(2):  # occupy every slot with idle connections
                 conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                conn.connect(str(path))
+                # Retry connection a few times in case server isn't ready yet
+                for attempt in range(10):
+                    try:
+                        conn.connect(str(path))
+                        break
+                    except ConnectionRefusedError:
+                        if attempt == 9:
+                            raise
+                        time.sleep(0.05)
                 holders.append(conn)
             time.sleep(0.2)
             started = time.monotonic()
