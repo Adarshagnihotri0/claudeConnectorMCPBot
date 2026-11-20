@@ -10,12 +10,13 @@ import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from mcp_approval_gate import desktop_config
 from mcp_approval_gate.approval_daemon import ApprovalDaemon, DaemonConfig, serve
-from mcp_approval_gate.daemon_client import DaemonApprover, call
+from mcp_approval_gate.daemon_client import DaemonApprover, DaemonUnavailable, call
 from mcp_approval_gate.gate import ApprovalGate, Request
 from mcp_approval_gate.stdio_proxy import serve as serve_stdio
 from mcp_approval_gate.telegram_approver import TelegramApprover
@@ -66,6 +67,17 @@ def wait_for(predicate, timeout=5):
     raise AssertionError("condition not reached")
 
 
+def wait_for_daemon(path):
+    def responding():
+        try:
+            return call({"op": "status"}, path, timeout=0.5).get("ok")
+        except DaemonUnavailable:
+            return False
+
+    # bind() creates the socket file before listen() can accept connections.
+    wait_for(responding)
+
+
 class DaemonHarness:
     def __init__(self, session=None, **config):
         self.dir = TemporaryDirectory()
@@ -78,7 +90,11 @@ class DaemonHarness:
         self.path = pathlib.Path(self.dir.name) / "a.sock"
         self.thread = threading.Thread(target=serve, args=(self.daemon, self.path, self.stop), daemon=True)
         self.thread.start()
-        wait_for(self.path.exists)
+        try:
+            wait_for_daemon(self.path)
+        except AssertionError:
+            self.close()
+            raise
         self.client = DaemonApprover(self.path, timeout=10)
 
     def close(self):
@@ -91,6 +107,17 @@ class DaemonHarness:
 def write(name, text="x", rid=1):
     return Request("files", "tools/call", {"name": "write_file",
                    "arguments": {"path": name, "content": text}}, rid, threading.Event())
+
+
+class DaemonReadinessTests(unittest.TestCase):
+    def test_wait_retries_unavailable_status_without_requiring_telegram_health(self):
+        path = pathlib.Path("a.sock")
+        with patch(f"{__name__}.call", side_effect=[
+            DaemonUnavailable("connection refused"), {"ok": True, "healthy": False},
+        ]) as status:
+            wait_for_daemon(path)
+        self.assertEqual(status.call_count, 2)
+        status.assert_called_with({"op": "status"}, path, timeout=0.5)
 
 
 class DaemonTests(unittest.TestCase):
